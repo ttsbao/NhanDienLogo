@@ -1,0 +1,139 @@
+.img-wrap {
+    position: relative;
+    display: inline-block;
+    /*border: 3px darkseagreen solid;*/
+    /*border-radius: 3px;*/
+    font-size: 0;
+    /*z-index: 200;*/
+}
+.close{
+    position: absolute;
+    top: 2px;
+    right: 2px;
+    z-index: 100;
+    background-color: rgba(255, 255, 255, 0);
+    padding: 2px 5px 5px;
+    color: #000;
+    font-weight: bold;
+    cursor: pointer;
+    opacity: .4;
+    text-align: center;
+    font-size: 25px;
+    line-height: 10px;
+    border-radius: 50%;
+    border: 0;
+    transition: opacity 0.5s ease-out 10ms;
+}
+
+.close:hover{
+    opacity: .8;
+}
+
+.img-wrap:hover{
+    opacity: 1;
+}
+
+.img-show{
+    max-width: 80px;
+    min-width: 80px;
+    min-height: 60px;
+    max-height: 60px;
+    border: 2px darkseagreen solid;
+    border-radius: 1px;
+    opacity: 1;
+    /*transition: opacity 1s ease-out 100ms;*/
+    transition: border 0.25s ease-out 10ms;
+}
+
+.img-show:hover{
+    opacity: .8;
+    border: 2px lawngreen solid;
+}
+
+.imglabel-show{
+    max-width: 80px;
+    min-width: 80px;
+    min-height: 60px;
+    max-height: 60px;
+    border: 3px red solid;
+    border-radius: 2px;
+    opacity: 1;
+    /*transition: opacity 1s ease-out 100ms;*/
+    transition: border 0.25s ease-out 10ms;
+}
+
+.imglabel-show:hover{
+    opacity: .9;
+    border: 4px yellow solid;
+}
+
+/* The Modal (background) */
+.modal {
+  display: none; /* Hidden by default */
+  position: fixed; /* Stay in place */
+  z-index: 1; /* Sit on top */
+  padding-top: 100px; /* Location of the box */
+  left: 0;
+  top: 0;
+  width: 100%; /* Full width */
+  height: 100%; /* Full height */
+  overflow: auto; /* Enable scroll if needed */
+  background-color: rgb(0,0,0); /* Fallback color */
+  background-color: rgba(0,0,0,0.9); /* Black w/ opacity */
+}
+
+/* Modal Content (Image) */
+.modal-content {
+  margin: auto;
+  display: block;
+  width: 80%;
+  max-width: 700px;
+}
+
+/* Caption of Modal Image (Image Text) - Same Width as the Image */
+#caption {
+  margin: auto;
+  display: block;
+  width: 80%;
+  max-width: 700px;
+  text-align: center;
+  color: #ccc;
+  padding: 10px 0;
+  height: 150px;
+}
+
+/* Add Animation - Zoom in the Modal */
+.modal-content, #caption {
+  animation-name: zoom;
+  animation-duration: 0.6s;
+}
+
+@keyframes zoom {
+  from {transform:scale(0)}
+  to {transform:scale(1)}
+}
+
+/* The Close Button */
+.close-x {
+  position: absolute;
+  top: 15px;
+  right: 35px;
+  color: #f1f1f1;
+  font-size: 40px;
+  font-weight: bold;
+  transition: 0.3s;
+}
+
+.close-x:hover,
+.close-x:focus {
+  color: #bbb;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+/* 100% Image Width on Smaller Screens */
+@media only screen and (max-width: 700px){
+  .modal-content {
+    width: 100%;
+  }
+}

@@ -1,0 +1,9 @@
+path: ../datasets/Logo  # dataset root dir
+train: train_0.txt  # train images (relative to 'path')  8219 images
+val: val_0.txt  # val images (relative to 'path')  588 images
+test: test_0.txt  # test images (optional)  2936 images
+
+# Classes
+nc: 14  # number of classes
+names: ['abbott', 'acecook', 'vinamilk', 'viettel', 'bosch', 'cgv', 'thegioididong',
+        'vnpt', 'tiki', 'mobifone', 'lg', 'fpt', 'grab', 'highland_coffee']

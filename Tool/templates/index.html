@@ -1,0 +1,901 @@
+<!DOCTYPE html>
+<html lang="en">
+<!--    <script type="text/javascript" src="static/assets/js/socket.io.min.js"></script>-->
+<!--    <script src="{{ url_for('static', filename='script.js') }}"></script>-->
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, shrink-to-fit=no">
+    <title>Untitled</title>
+    <link rel="stylesheet" href="static/assets/css/Remove-Image-Button.css">
+    <script type="text/javascript" src="static/assets/js/jquery-3.6.0.min.js"></script>
+    <script src="https://cdn.socket.io/4.1.2/socket.io.min.js" integrity="sha384-toS6mmwu70G0fw54EGlWWeA4z3dyJ+dlXBtSURSKN4vyRFOcxd3Bzjj/AoOwY+Rg" crossorigin="anonymous"></script>
+    <link rel="stylesheet" href="static/assets/bootstrap/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Aclonica">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Alfa+Slab+One">
+    <link rel="stylesheet" href="static/assets/fonts/ionicons.min.css">
+    <link rel="stylesheet" href="static/assets/css/Bootstrap-4---Table-Fixed-Header.css">
+    <link rel="stylesheet" href="static/assets/css/Bootstrap-Tags-Input.css">
+    <link rel="stylesheet" href="static/assets/css/Button-Icon-Counter.css">
+    <link rel="stylesheet" href="static/assets/css/Button-Icon-Round.css">
+    <link rel="stylesheet" href="static/assets/css/Codeblock.css">
+    <link rel="stylesheet" href="static/assets/css/Custom-File-Upload.css">
+    <link rel="stylesheet" href="static/assets/css/dh-header-cover-image-button.css">
+    <link rel="stylesheet" href="static/assets/css/Footer-KEET-and-OHO.css">
+    <link rel="stylesheet" href="https://cdn.datatables.net/buttons/1.6.5/css/buttons.dataTables.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/3.5.2/animate.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/datatables/1.10.21/css/dataTables.bootstrap4.min.css">
+    <link rel="stylesheet" href="static/assets/css/Icon-Input.css">
+    <link rel="stylesheet" href="static/assets/css/ml-video-1.css">
+    <link rel="stylesheet" href="static/assets/css/ml-video.css">
+    <link rel="stylesheet" href="static/assets/css/Multi-Select-Dropdown-by-Jigar-Mistry.css">
+    <link rel="stylesheet" href="static/assets/css/NZTextarea.css">
+    <link rel="stylesheet" href="static/assets/css/steps-progressbar.css">
+    <link rel="stylesheet" href="static/assets/css/Studious-selectbox.css">
+    <link rel="stylesheet" href="static/assets/css/styles.css">
+    <link rel="stylesheet" href="static/assets/css/Tricky-Grid---2-Column-on-Desktop--Tablet-Flip-Order-of-12-Column-rows-on-Mobile.css">
+    <script src="https://unpkg.com/react@16/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@16/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/babel-standalone@6.15.0/babel.min.js"></script>
+    <link href="//netdna.bootstrapcdn.com/font-awesome/4.1.0/css/font-awesome.min.css" rel="stylesheet">
+    <script>
+
+</script>
+    <script>
+        var socket;
+        var client_key;
+        var chunkSize = 5000000; //1 MB
+        var exModel = new Map([]);
+        var exYAML = new Map([]);
+        var exVideo = new Map([]);
+        var dict_images = new Map([]);
+        var downModel = undefined;
+        var downYAML = undefined;
+        var downVideo = undefined;
+        var custom_model = false;
+        var detection_video = false;
+        var action = [  'input_upload_images', 'btn_upload_images', 'btn_reset_images',
+                        'input_upload_labels', 'btn_upload_labels', 'btn_reset_labels', 'btn-check-labels',
+                        'btn-reset-class', 'btn-add-class', 'btn-remove-class', 'btn-create-yaml', 'btn-import-yaml',
+                        "input-model-choose", "input-model-import",  "input-upload-weight",
+                        "btn-upload-weight", 'btn-reset-model', "select-weights",
+                        'btn-train-model', "btn_reset_decteion", "btn-object-detection",
+                        "input_upload_detection", "input-detection-size", "input-detection-threshold",
+                        "input-detection-iou", "input-detection-max"];
+        var train_action = ['btn-train-test', 'btn-train-exmodel', 'btn-train-exyaml']
+
+        function round2(number) {return Math.round((number + Number.EPSILON) * 100) / 100;}
+        $(document).ready(function () {
+            set_check_labels("Mising all labels, Please press the button to check the labels of the images !");
+            init_train_step();
+            //train_tool_on();
+            socket = io.connect("http://127.0.0.1:5000");
+            socket.on('connect', () => {
+                client_key = socket.id;
+                socket.emit('init_project', client_key);
+            });
+            socket.on('private_server', function(msg){
+                let data = msg[0].split("|||");
+                let smsg = msg[0].split("|||", 1);
+                switch (smsg[0]) {
+                    case 'Progress':progress_bar(msg[0], msg[1], msg[2]);break;
+                    case 'Progress_Step':progress_step_train(msg[0], msg[1]);break;
+                    case 'ResetImages':reset_images_done();break;
+                    case 'ResetLabels':reset_labels_done();break;
+                    case 'CheckLabels':check_label_done(msg[1]);break;
+                    case 'CreateYAML':create_yaml_done();break;
+                    case 'UploadYAML':set_yaml(msg[1]); break;
+                    case 'Compress':end_process();break;
+                    case 'DetectionCompress':end_process();break;
+                    case 'VideoCompress':end_process();break;
+                    case 'TrainError':alert(data[1]);break;
+                    case 'TrainConsole':set_train_console(data[1]);break;
+                    case 'ExportModel': setExModel(data[1], msg[1]);break;
+                    case 'FinishModel': finish_model();break;
+                    case 'ExportYAML': setExYAML(data[1], msg[1]);break;
+                    case 'FinishYAML': finish_yaml();break;
+                    case 'ExportVideo': setExVideo(data[1], msg[1]);break;
+                    case 'FinishVideo': finish_video();break;
+                    case 'KillTrain': killTrain();break;
+                    case 'ModelStep': modelstep();break;
+                    case 'YAMLStep': yamlstep();break;
+                    case 'DetectionDone': detection_done();break;
+
+                    default:break;
+                }
+                //console.log(smsg[0]);
+            });
+
+            socket.on('disconnect', (reason) => {
+              if (reason === 'ping timeout') {
+                socket.reconnect();
+              }
+              console.log(reason);
+            });
+
+        })
+
+        function setExModel(key, base64) {exModel.set(key, base64);}
+        function setExYAML(key, base64) {exYAML.set(key, base64);}
+        function setExVideo(key, base64) {exVideo.set(key, base64);}
+        function killTrain() {end_process();train_tool_off();document.getElementById('btn-train-kill').disabled = true;}
+        function modelstep() {
+            socket.emit('export_model');
+        }
+        function yamlstep() {
+            socket.emit('export_yaml');
+        }
+
+        function detection_done() {socket.emit('export_video');}
+
+        function progress_step_train(idx, value) {
+            let number = (round2(parseFloat(value)*100));
+            let rate = number.toString() + '%';
+            let color = 'rgb(' + (201 - Math.round(number)).toString() + ', 213, ' +  (216 - Math.round(number)).toString() + ')';
+            let msg = idx.split("|||", 4);
+            let type = msg[2];
+            let step = parseInt(msg[3]);
+            document.getElementById(idx).style.backgroundColor = color;
+            if(type === "0" || type === "2"){
+                document.getElementById(idx).style.width = (number/2).toString() + "%";
+            }else {
+                document.getElementById(idx).style.width = rate;
+            }
+            //set_train_step(step, round2(parseFloat(value)));
+            if (parseInt(value) === 1){
+                if(step === 3){
+                    custom_model = true;
+                }
+                set_train_step(step, 1);
+            }
+
+        }
+
+        function progress_bar(idx, value, data) {
+            var number = (round2(value*100))
+            var rate = number.toString() + '%';
+            var color = 'rgb(0, 220, ' +  (200 - Math.round(number)).toString() + ')';
+            document.getElementById(idx).textContent = rate;
+            document.getElementById(idx).style.width = rate;
+            document.getElementById(idx).style.backgroundColor = color;
+            switch (idx.split("|||", 2)[1]) {
+                case "Upload_Images":
+                    add_images(data);
+                    break;
+                case "Upload_Weights":
+                    upload_weights_done(number);
+                    break;
+                case "Upload_Detection":
+                    upload_detection_done(number);
+                    break;
+                case "Upload_Video":
+                    upload_video_done(number);
+                    break;
+                default:
+                    break;
+            }
+            if (value === 1.0){
+                end_process();
+            }
+        }
+
+
+
+        function upload_images(){
+            start_process();
+            var data = document.getElementById('input_upload_images');
+            if(data.files[0]){
+                socket.emit('init_progress', ['Upload_Images', (data.files.length).toString()])
+                reset_progress('Progress|||Upload_Images|||RJ');
+            }
+            if (data.files.length < 1000){
+                for(let i=0; i<data.files.length; i++){
+                    const reader = new FileReader();
+                    reader.onload = function() {
+                        const fname = this.fileName;
+                        const ftype = this.fileType;
+                        const fclient_key = this.clientKey;
+                        const imgEl = document.createElement('img');
+                        imgEl.addEventListener('load', () => {
+                            maxsize = 300;
+                            const canvas = document.createElement('canvas');
+                            const ctx = canvas.getContext('2d');
+                            const aspect = imgEl.width / imgEl.height;
+                            if (imgEl.width > imgEl.height) {
+                                canvas.width = maxsize;
+                                canvas.height = imgEl.height / aspect;
+                            }else{
+                                canvas.width = imgEl.width / aspect;
+                                canvas.height = maxsize;
+                            }
+                            ctx.drawImage(imgEl, 0, 0, canvas.width, canvas.height);
+                            const base64 = (canvas.toDataURL()).replace(/.*base64,/, '');
+                            //console.log(canvas.toDataURL());
+                            dict_images.set(fname, canvas.toDataURL());
+                            socket.emit('images-upload', [fclient_key, fname, ftype, base64]);
+                        });
+                        imgEl.src = this.result;
+                    };
+                    reader.fileName = data.files[i].name;
+                    reader.fileType = data.files[i].type;
+                    reader.clientKey = client_key.toString();
+                    reader.readAsDataURL(data.files[i]);
+                }
+                data.value="";
+            }else{
+                alert("Sorry! You can upload less than 1000 images at a time!");
+            }
+        }
+        
+        function upload_labels() {
+            var data = document.getElementById('input_upload_labels');
+            if(data.files[0]){
+                socket.emit('init_progress', ['Upload_Labels', (data.files.length).toString()])
+                reset_progress('Progress|||Upload_Labels|||RJ');
+            }
+            if (data.files.length < 10000){
+                for(let i=0; i<data.files.length; i++){
+                    const reader = new FileReader();
+                    reader.onload = function() {
+                        const fname = this.fileName;
+                        const ftype = this.fileType;
+                        const fclient_key = this.clientKey;
+                        const base64 = this.result.replace(/.*base64,/, '');
+                        socket.emit('labels-upload', [fclient_key, fname, ftype, base64]);
+                    }
+                    reader.fileName = data.files[i].name;
+                    reader.fileType = data.files[i].type;
+                    reader.clientKey = client_key.toString();
+                    reader.readAsDataURL(data.files[i]);
+                }
+                data.value="";
+            }else{
+                alert("Sorry! You can upload less than 10000 labels at a time!");
+            }
+        }
+
+        function upload_yaml() {
+            var i = 0;
+            var data = document.getElementById('Input|||YAML');
+            if(data.files[i]){
+                start_process();
+                set_name_labels("Uploading yaml file ..... ")
+                const reader = new FileReader();
+                reader.onload = function() {
+                    const base64 = this.result.replace(/.*base64,/, '');
+                    socket.emit('yaml-upload', base64);
+                }
+                reader.readAsDataURL(data.files[i]);
+                data.value="";
+            }
+        }
+
+
+        function createChunks (file,cSize) {
+            let startPointer = 0;
+            let endPointer = file.size;
+            let chunks = [];
+            while(startPointer<endPointer){
+                let newStartPointer = startPointer+cSize;
+                chunks.push(file.slice(startPointer,newStartPointer));
+                startPointer = newStartPointer;
+            }
+            return chunks;
+        }
+
+        function upload_weight() {
+            var data = document.getElementById("input-upload-weight");
+            if(data.files[0]){
+                start_process();
+                var file = data.files[0];
+                const chunks = createChunks(file, chunkSize);
+                socket.emit('init_progress', ['Upload_Weights', chunks.length.toString()])
+                reset_progress('Progress|||Upload_Weights|||RJ');
+                for(let i=0; i<chunks.length; i++){
+                    const reader = new FileReader();
+                    reader.onload = function() {
+                        const base64 = this.result.replace(/.*base64,/, '');
+                        socket.emit('upload-weight', [base64, this.fileIndex]);
+                    }
+                    reader.fileIndex = i;
+                    reader.readAsDataURL(chunks[i]);
+                }
+            }
+        }
+
+        function upload_detection() {
+            var data = document.getElementById("input_upload_detection");
+            if(data.files[0]){
+                start_process();
+                var file = data.files[0];
+                const chunks = createChunks(file, chunkSize);
+                socket.emit('init_progress', ['Upload_Detection', chunks.length.toString()])
+                reset_progress('Progress|||Upload_Detection|||RJ');
+                for(let i=0; i<chunks.length; i++){
+                    const reader = new FileReader();
+                    reader.onload = function() {
+                        const base64 = this.result.replace(/.*base64,/, '');
+                        socket.emit('upload-detection', [base64, this.fileIndex]);
+                    }
+                    reader.fileIndex = i;
+                    reader.readAsDataURL(chunks[i]);
+                }
+            }
+        }
+
+        function upload_video() {
+            var data = document.getElementById("input_upload_video");
+            if(data.files[0]){
+                start_process();
+                var file = data.files[0];
+                const chunks = createChunks(file, chunkSize);
+                socket.emit('init_progress', ['Upload_Video', chunks.length.toString()])
+                reset_progress('Progress|||Upload_Video|||RJ');
+                for(let i=0; i<chunks.length; i++){
+                    const reader = new FileReader();
+                    reader.onload = function() {
+                        const base64 = this.result.replace(/.*base64,/, '');
+                        socket.emit('upload-video', [base64, this.fileIndex]);
+                    }
+                    reader.fileIndex = i;
+                    reader.readAsDataURL(chunks[i]);
+                }
+            }
+        }
+
+        function b64toBlob(b64DataArray, contentType='', sliceSize=512){
+            const byteArrays = [];
+            for(let chunk = 0; chunk < b64DataArray.length; chunk++){
+                const byteCharacters = atob(b64DataArray[chunk]);
+                for (let offset = 0; offset < byteCharacters.length; offset += sliceSize) {
+                    const slice = byteCharacters.slice(offset, offset + sliceSize);
+                    const byteNumbers = new Array(slice.length);
+                    for (let i = 0; i < slice.length; i++) {
+                        byteNumbers[i] = slice.charCodeAt(i);
+                    }
+                    const byteArray = new Uint8Array(byteNumbers);
+                    byteArrays.push(byteArray);
+                }
+            }
+            return new Blob(byteArrays, {type: contentType});
+        }
+
+
+        function finish_model() {
+            var data = [];
+            for(let i=0; i<exModel.get('len'); i++){
+                data.push(exModel.get(i.toString()));
+            }
+            const contentType = 'application/octet-stream';
+            const blob = b64toBlob(data, contentType);
+            var objectURL = window.URL.createObjectURL(blob);
+
+            downModel = document.createElement('a');
+            downModel.href = objectURL;
+            downModel.download = "model.pt";
+            document.body.appendChild(downModel);
+        }
+
+        function finish_video() {
+            var data = [];
+            for(let i=0; i<exVideo.get('len'); i++){
+                data.push(exVideo.get(i.toString()));
+            }
+            const contentType = 'video/mp4';
+            const blob = b64toBlob(data, contentType);
+            var objectURL = window.URL.createObjectURL(blob);
+            var video = document.querySelector('video');
+            video.src = objectURL;
+            downVideo = document.createElement('a');
+            downVideo.href = objectURL;
+            downVideo.download = "exported_video.mp4";
+            document.body.appendChild(downVideo);
+            socket.emit('compress_video_export');
+            document.getElementById('btn-export-video').disabled = false;
+            end_process();
+        }
+
+        function finish_yaml() {
+            var data = [];
+            for(let i=0; i<exYAML.get('len'); i++){
+                data.push(exYAML.get(i.toString()));
+            }
+            const contentType = 'application/octet-stream';
+            const blob = b64toBlob(data, contentType);
+            var objectURL = window.URL.createObjectURL(blob);
+
+            downYAML = document.createElement('a');
+            downYAML.href = objectURL;
+            downYAML.download = "label.yaml";
+            document.body.appendChild(downYAML);
+            train_tool_on();
+            set_detection_status("You can use the trained model or upload a new model (Trained model will be deleted, you need to export it and upload again)!");
+        }
+
+        function check_config_detection() {
+            var check = 1;
+            var img_size = document.getElementById("input-detection-size").value;
+            var threshold = document.getElementById("input-detection-threshold").value;
+            var iou = document.getElementById("input-detection-iou").value;
+            var maxd = document.getElementById("input-detection-max").value;
+            var data;
+            if (img_size === "" || 50 > img_size || img_size  > 1280){
+                check = 0;
+                alert("You can only set the image size from 51 to 1280 px!");
+            }
+            if (threshold === "" || 0.1 > threshold || threshold > 1){
+                check = 0;
+                alert("You can only set the batch size from 1 to 128!");
+            }
+            if (iou === "" || 0.1 > iou || iou > 1){
+                check = 0;
+                alert("You can only set the batch size from 1 to 128!");
+            }
+            if (maxd === "" || 1 > maxd){
+                check = 0;
+                alert("You can only set epochs more than 1!");
+            }
+            // if (custom_model === false){
+            //     check = 0;
+            //     alert("Please upload your model !");
+            // }
+            // if (detection_video === false){
+            //     check = 0;
+            //     alert("Please upload your video !");
+            // }
+
+            if(check){
+                data = [parseInt(img_size), parseFloat(threshold), parseFloat(iou), parseInt(maxd), check];
+                return data
+            }
+            return 0;
+        }
+
+        function objecdetection() {
+            let data = check_config_detection();
+            if(data !== 0){
+                console.log(data);
+                start_process();
+                document.getElementById('btn-export-video').disabled = true;
+                reset_progress('Progress|||Object_Detection|||RJ');
+                socket.emit('object-detection', data);
+            }
+        }
+
+
+        function check_config_model() {
+            var check = 1;
+            var img_size = document.getElementById("input-model-size").value;
+            var batch = document.getElementById('input-model-batch').value;
+            var epochs = document.getElementById('input-model-epochs').value;
+            var radioValue = $("input[name='import_weights']:checked").val();
+            var data;
+            if (img_size === "" || 50 > img_size || img_size  > 1280){
+                check = 0;
+                alert("You can only set the image size from 51 to 1280 px!");
+            }
+            if (batch === "" || 1 > batch || batch > 128){
+                check = 0;
+                alert("You can only set the batch size from 1 to 128!");
+            }
+            if (epochs === "" || 1 > epochs){
+                check = 0;
+                alert("You can only set epochs more than 1!");
+            }
+            if(check){
+                if(radioValue === "import"){
+                    data = [parseInt(img_size), parseInt(batch), parseInt(epochs), -1, check];
+                }
+                else{
+                    var choose = document.getElementById("select-weights").value;
+                    data = [parseInt(img_size), parseInt(batch), parseInt(epochs), parseInt(choose), check];
+                }
+                return data
+            }
+            return 0;
+        }
+
+        function train_model() {
+            reset_progress('Progress|||Train_Model|||RJ');
+            let data = check_config_model();
+            console.log(data);
+            if(data !== 0){
+                train_tool_off();
+                start_process();
+                reset_console_train();
+                reset_train_step();
+                set_train_console('Checking Data ...');
+                document.getElementById('btn-train-kill').disabled = false;
+                socket.emit('train-model', data);
+            }
+        }
+        
+        function test_model() {socket.emit("test-model");document.getElementById('btn-train-test').disabled = true;}
+        function export_train_model() {downModel.click();}
+        function export_yaml() {downYAML.click();}
+        function export_video() {downVideo.click();}
+
+
+    </script>
+</head>
+
+<body><header class="header" style="padding-bottom: 10px;"><div class="header-container" style="padding-top: 10px;padding-bottom: 175px;background: url(&quot;static/assets/img/c1fa8ae144a8bb0eb2337052188024e3.jpg&quot;) left / cover repeat-x;"><div class="container"><div class="col-md-6 offset-md-3 header-title"><h1 style="color: #008000;text-align: right;font-family: Aclonica, sans-serif;border-radius: 10px;border-style: none;border-color: #000000;text-shadow: 0px 0px 20px #ffa5d0;transform: translate(212px);">OBJECT DETECTION MACHINE</h1><p>&nbsp; &nbsp;&nbsp;</p></div></div></div></header><p style="text-align: center; padding-bottom: 30px; padding-top: 30px; font-weight: bold;" id="user_ip" ></p>
+
+<!--    --------------------------------------------------------------------------------------------------------------   -->
+<!--    ---------------------------------------------   UPLOAD IMAGES ------------------------------------------------   -->
+<!--    --------------------------------------------------------------------------------------------------------------   -->
+
+    <section class="mt-4"><div class="container-fluid"><div class="row"><div class="col"><div class="card shadow"><div class="card-header py-2"><div></div><div class="row"><div class="col" style="text-align: center;"><div class="row"><div class="col"><p style="font-size: 16px;font-weight: bold;color: black;">UPLOAD IMAGES</p></div><div class="col" style="min-width: 30px;max-width: 30px;padding-right: 0;padding-left: 0;">
+        <button id="btn_reset_images" onclick="reset_images()" class="btn" data-bss-hover-animate="tada" type="button" style="min-width: 30px;max-width: 30px;height: 100%;min-height: 30px;max-height: 30px;padding-top: 0px;padding-right: 0;padding-bottom: 0;padding-left: 0;margin: 0;margin-top: 0;margin-right: 0;margin-bottom: 0;margin-left: 0;background: rgba(0,0,0,0.075);opacity: 1;transform: translate(0px) rotate(0deg) scale(0.92);filter: brightness(0%) contrast(85%);border-style: none;border-radius: 20px;"><svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round" class="icon icon-tabler icon-tabler-refresh" style="font-size: 20px;text-align: center;"><path stroke="none" d="M0 0h24v24H0z" fill="none"></path><path d="M20 11a8.1 8.1 0 0 0 -15.5 -2m-.5 -4v4h4"></path><path d="M4 13a8.1 8.1 0 0 0 15.5 2m.5 4v-4h-4"></path></svg></button></div></div></div></div><form id="form_upload_images" enctype='multipart/form-data' class="row" method="POST"><div class="col" style="min-width: 200px;max-width: 200px;width: 200px;min-height: 40px;max-height: 40px;height: 40px;"><div  style="width: 100%;min-width: 100%;max-width: 100%;height: 100%;min-height: 100%;max-height: 100%;">
+        <input type="file" name="input_upload_images" id="input_upload_images" accept="image/*" multiple="multiple" class="btn" data-bss-hover-animate="flash" style="font-size: 10px; font-weight: bold; min-width: 100%;max-width: 100%;height: 100%;min-height: 100%;max-height: 100%;padding-top: 10px;padding-right: 5px;padding-bottom: 5px;padding-left: 5px;margin: 0;margin-top: 0;margin-right: 0;margin-bottom: 0;margin-left: 0;"/></div></div><div class="col" style="min-width: 40px;max-width: 40px;height: 40px;margin: 0;padding-right: 0;padding-left: 0;min-height: 40px;max-height: 40px;">
+        <button onclick="upload_images()" id="btn_upload_images" class="btn" data-bss-hover-animate="flash" type="button" style="min-width: 100%;max-width: 100%;height: 100%;min-height: 100%;max-height: 100%;padding-top: 5px;padding-right: 5px;padding-bottom: 5px;padding-left: 5px;margin: 0;margin-top: 0;margin-right: 0;margin-bottom: 0;margin-left: 0;"><svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 16 16" fill="currentColor" class="bi bi-cloud-upload-fill" style="font-size: 20px;"><path fill-rule="evenodd" d="M8 0a5.53 5.53 0 0 0-3.594 1.342c-.766.66-1.321 1.52-1.464 2.383C1.266 4.095 0 5.555 0 7.318 0 9.366 1.708 11 3.781 11H7.5V5.707L5.354 7.854a.5.5 0 1 1-.708-.708l3-3a.5.5 0 0 1 .708 0l3 3a.5.5 0 0 1-.708.708L8.5 5.707V11h4.188C14.502 11 16 9.57 16 7.773c0-1.636-1.242-2.969-2.834-3.194C12.923 1.999 10.69 0 8 0zm-.5 14.5V11h1v3.5a.5.5 0 0 1-1 0z"></path></svg></button></div><div class="col" style="padding-top: 0px;margin-top: 10px;margin-bottom: 10px;padding-left: 10px;padding-right: 12px;">
+        <div id="Progress|||Upload_Images" class="progress" style="width: 100%;min-width: 100%;max-width: 100%;height: 100%;min-height: 100%;max-height: 100%;border-radius: 3px;"></div></div></form></div>
+        <div id="Show|||Upload_Images" class="card-body" style="margin-left: 20px;"></div></div></div></div></div>
+    </section>
+
+<!--    --------------------------------------------------------------------------------------------------------------   -->
+<!--    ---------------------------------------------   UPLOAD LABELS ------------------------------------------------   -->
+<!--    --------------------------------------------------------------------------------------------------------------   -->
+
+    <section class="mt-4" style="padding-top: 20px;"><div class="container-fluid"><div class="row"><div class="col"><div class="card shadow"><div class="card-header py-2"><div></div><div class="row"><div class="col" style="text-align: center;"><div class="row"><div class="col"><p style="font-size: 16px;font-weight: bold;color: black;">UPLOAD LABELS</p></div><div class="col" style="min-width: 30px;max-width: 30px;padding-right: 0;padding-left: 0;">
+        <button id="btn_reset_labels" onclick="reset_labels()" class="btn" data-bss-hover-animate="tada" type="button" style="min-width: 30px;max-width: 30px;height: 100%;min-height: 30px;max-height: 30px;padding-top: 0px;padding-right: 0;padding-bottom: 0;padding-left: 0;margin: 0;margin-top: 0;margin-right: 0;margin-bottom: 0;margin-left: 0;background: rgba(0,0,0,0.075);opacity: 1;transform: translate(0px) rotate(0deg) scale(0.92);filter: brightness(0%) contrast(85%);border-style: none;border-radius: 20px;"><svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round" class="icon icon-tabler icon-tabler-refresh" style="font-size: 20px;text-align: center;"><path stroke="none" d="M0 0h24v24H0z" fill="none"></path><path d="M20 11a8.1 8.1 0 0 0 -15.5 -2m-.5 -4v4h4"></path><path d="M4 13a8.1 8.1 0 0 0 15.5 2m.5 4v-4h-4"></path></svg></button></div></div></div></div><form id="form_upload_labels" enctype='multipart/form-data' class="row" method="POST"><div class="col" style="min-width: 200px;max-width: 200px;width: 200px;min-height: 40px;max-height: 40px;height: 40px;"><div  style="width: 100%;min-width: 100%;max-width: 100%;height: 100%;min-height: 100%;max-height: 100%;">
+        <input type="file" id="input_upload_labels" accept=".txt" multiple="multiple" class="btn" data-bss-hover-animate="flash" style="font-size: 10px; font-weight: bold; min-width: 100%;max-width: 100%;height: 100%;min-height: 100%;max-height: 100%;padding-top: 10px;padding-right: 5px;padding-bottom: 5px;padding-left: 5px;margin: 0;margin-top: 0;margin-right: 0;margin-bottom: 0;margin-left: 0;"/></div></div><div class="col" style="min-width: 40px;max-width: 40px;height: 40px;margin: 0;padding-right: 0;padding-left: 0;min-height: 40px;max-height: 40px;">
+        <button onclick="upload_labels()" id="btn_upload_labels" class="btn" data-bss-hover-animate="flash" type="button" style="min-width: 100%;max-width: 100%;height: 100%;min-height: 100%;max-height: 100%;padding-top: 5px;padding-right: 5px;padding-bottom: 5px;padding-left: 5px;margin: 0;margin-top: 0;margin-right: 0;margin-bottom: 0;margin-left: 0;"><svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 16 16" fill="currentColor" class="bi bi-cloud-upload-fill" style="font-size: 20px;"><path fill-rule="evenodd" d="M8 0a5.53 5.53 0 0 0-3.594 1.342c-.766.66-1.321 1.52-1.464 2.383C1.266 4.095 0 5.555 0 7.318 0 9.366 1.708 11 3.781 11H7.5V5.707L5.354 7.854a.5.5 0 1 1-.708-.708l3-3a.5.5 0 0 1 .708 0l3 3a.5.5 0 0 1-.708.708L8.5 5.707V11h4.188C14.502 11 16 9.57 16 7.773c0-1.636-1.242-2.969-2.834-3.194C12.923 1.999 10.69 0 8 0zm-.5 14.5V11h1v3.5a.5.5 0 0 1-1 0z"></path></svg></button></div><div class="col" style="padding-top: 0px;margin-top: 10px;margin-bottom: 10px;padding-left: 10px;padding-right: 12px;">
+        <div id="Progress|||Upload_Labels" class="progress" style="width: 100%;min-width: 100%;max-width: 100%;height: 100%;min-height: 100%;max-height: 100%;border-radius: 3px;"></div></div></form><div class="row" style="padding-top: 10px;"><div class="col">
+        <button id="btn-check-labels" onclick="check_labels()" class="btn" data-bss-hover-animate="flash" type="button" style="min-width: 100%;max-width: 100%;height: 100%;min-height: 100%;max-height: 100%;padding-top: 5px;padding-right: 5px;padding-bottom: 5px;padding-left: 5px;margin: 0;margin-top: 0;margin-right: 0;margin-bottom: 0;margin-left: 0;"><span class="text-uppercase" style="font-size: 10px;font-weight: bold;">check all labels of all Images</span></button></div><div class="col" style="text-align: center;padding-top: 2px;">
+        <small id="status-labels" class="form-text" style="font-size: 15px;font-weight: bold;color: var(--bs-red);"></small></div></div></div>
+        <div id="Show|||Upload_Labels" class="card-body" style="margin-left: 20px;"></div></div></div></div></div>
+    </section>
+
+<!--    --------------------------------------------------------------------------------------------------------------   -->
+<!--    ---------------------------------------------   ADD LABELS NAME ----------------------------------------------   -->
+<!--    --------------------------------------------------------------------------------------------------------------   -->
+
+    <section class="mt-4" style="padding-top: 20px;"><div class="container-fluid"><div class="row"><div class="col"><div class="card shadow"><div class="card-header py-2" style="text-align: center;"><div class="row"><div class="col"><span style="font-size: 14PX;font-weight: bold;">AND LABELS NAME</span></div><div class="col" style="min-width: 30px;max-width: 30px;padding-right: 0;padding-left: 0;">
+        <button id="btn-reset-class" onclick="reset_class()" class="btn" data-bss-hover-animate="tada" type="button" style="min-width: 30px;max-width: 30px;height: 100%;min-height: 30px;max-height: 30px;padding-top: 0px;padding-right: 0;padding-bottom: 0;padding-left: 0;margin: 0;margin-top: 0;margin-right: 0;margin-bottom: 0;margin-left: 0;background: rgba(0,0,0,0.075);opacity: 1;transform: translate(0px) rotate(0deg) scale(0.92);filter: brightness(0%) contrast(85%);border-style: none;border-radius: 20px;"><svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round" class="icon icon-tabler icon-tabler-refresh" style="font-size: 20px;text-align: center;"><path stroke="none" d="M0 0h24v24H0z" fill="none"></path><path d="M20 11a8.1 8.1 0 0 0 -15.5 -2m-.5 -4v4h4"></path><path d="M4 13a8.1 8.1 0 0 0 15.5 2m.5 4v-4h-4"></path></svg></button></div></div><div></div></div><div class="card-body" style="margin-left: 20px;min-height: 450px;height: 450px;max-height: 450px;"><div class="row overflow-auto" style="max-height: 300px;padding-top: 10px;padding-bottom: 0px;"><div class="col" style="min-width: 120px;max-width: 120px;padding-left: 10px;padding-right: 10px;padding-top: 10px;padding-bottom: 10px;">
+        <button id="btn-add-class" onclick="add_class()" class="btn" data-bss-hover-animate="flash" type="button" style="min-width: 100px;max-width: 100px;height: 100%;min-height: 40px;max-height: 40px;padding-top: 5px;padding-right: 5px;padding-bottom: 5px;padding-left: 5px;margin: 0;margin-top: 0;margin-right: 0;margin-bottom: 0;margin-left: 0;"><span class="text-uppercase" style="font-size: 11px;font-weight: bold;color: var(--bs-dark);">ADD CLASS</span></button></div><div class="col" style="min-width: 120px;max-width: 120px;padding-left: 10px;padding-right: 10px;padding-top: 10px;padding-bottom: 10px;">
+        <button id="btn-remove-class" onclick="remove_class()" class="btn" data-bss-hover-animate="flash" type="button" style="min-width: 100px;max-width: 100px;height: 100%;min-height: 40px;max-height: 40px;padding-top: 5px;padding-right: 5px;padding-bottom: 5px;padding-left: 5px;margin: 0;margin-top: 0;margin-right: 0;margin-bottom: 0;margin-left: 0;"><span class="text-uppercase" style="font-size: 11px;font-weight: bold;color: var(--bs-dark);">REMOVE CLASS</span></button></div><div class="col" style="min-width: 160px;max-width: 160px;padding-left: 10px;padding-right: 10px;padding-top: 10px;padding-bottom: 10px;"><div class="input-group" style="margin-bottom: 0px;min-width: 140px;max-width: 140px;padding-top: 2px;"><div class="input-group-prepend"><span class="input-group-text icon-container" style="min-width: 80px;max-width: 80px;padding-left: 5px;"><span style="font-size: 14px;font-weight: bold;color: var(--bs-primary);">Total Class</span></span></div>
+        <input id="total-class" value="0" type="text" class="form-control" placeholder="0" readonly="" style="max-width: 60px;min-width: 60px;width: 60px;padding-top: 0;padding-right: 0;padding-bottom: 0;padding-left: 10px;"></div></div></div><div class="row overflow-auto" style="max-height: 300px;padding-top: 10px;padding-bottom: 0px;"><div class="col" style="min-width: 120px;max-width: 120px;padding-left: 10px;padding-right: 10px;padding-top: 10px;padding-bottom: 10px;">
+        <button id="btn-import-yaml" onclick="import_yaml()" class="btn" data-bss-hover-animate="flash" type="button" style="min-width: 100px;max-width: 100px;height: 100%;min-height: 40px;max-height: 40px;padding-top: 5px;padding-right: 5px;padding-bottom: 5px;padding-left: 5px;margin: 0;margin-top: 0;margin-right: 0;margin-bottom: 0;margin-left: 0;background: rgb(214,127,170);"><span class="text-uppercase" style="font-size: 11px;font-weight: bold;color: var(--bs-dark);">Import YAML</span></button></div><div class="col" style="min-width: 120px;max-width: 120px;padding-left: 10px;padding-right: 10px;padding-top: 10px;padding-bottom: 10px;">
+        <button id="btn-create-yaml" onclick="create_yaml()" class="btn" data-bss-hover-animate="flash" type="button" style="min-width: 100px;max-width: 100px;height: 100%;min-height: 40px;max-height: 40px;padding-top: 5px;padding-right: 5px;padding-bottom: 5px;padding-left: 5px;margin: 0;margin-top: 0;margin-right: 0;margin-bottom: 0;margin-left: 0;background: rgb(150,255,0);"><span class="text-uppercase" style="font-size: 11px;font-weight: bold;color: var(--bs-dark);">CREATE YAML</span></button></div><div class="col" style="padding-top: 12px;">
+        <small id="status-namelabels" class="form-text" style="font-size: 15px;font-weight: bold;color: var(--bs-red);"></small></div></div>
+        <div class="row overflow-auto" style="min-height: 270px;max-height: 270px;" id="Table|||Labels"></div></div></div></div>
+        <input onchange="upload_yaml()" accept=".yaml" type="file" hidden id="Input|||YAML"/>
+
+<!--    --------------------------------------------------------------------------------------------------------------   -->
+<!--    ---------------------------------------------   CONFIG MODEL -------------------------------------------------   -->
+<!--    --------------------------------------------------------------------------------------------------------------   -->
+
+        <div class="col"><div class="card shadow"><div class="card-header py-2" style="text-align: center;"><div class="row"><div class="col"><span style="font-size: 14PX;font-weight: bold;">CONFIG MODEL</span></div><div class="col" style="min-width: 30px;max-width: 30px;padding-right: 0;padding-left: 0;">
+        <button onclick="reset_model()" id="btn-reset-model" class="btn" data-bss-hover-animate="tada" type="button" style="min-width: 30px;max-width: 30px;height: 100%;min-height: 30px;max-height: 30px;padding-top: 0px;padding-right: 0;padding-bottom: 0;padding-left: 0;margin: 0;margin-top: 0;margin-right: 0;margin-bottom: 0;margin-left: 0;background: rgba(0,0,0,0.075);opacity: 1;transform: translate(0px) rotate(0deg) scale(0.92);filter: brightness(0%) contrast(85%);border-style: none;border-radius: 20px;"><svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round" class="icon icon-tabler icon-tabler-refresh" style="font-size: 20px;text-align: center;"><path stroke="none" d="M0 0h24v24H0z" fill="none"></path><path d="M20 11a8.1 8.1 0 0 0 -15.5 -2m-.5 -4v4h4"></path><path d="M4 13a8.1 8.1 0 0 0 15.5 2m.5 4v-4h-4"></path></svg></button></div></div><div></div></div><div class="card-body overflow-auto" style="margin-left: 20px;min-height: 450px;max-height: 450px;min-width: 560px;max-width: 560px;width: 560px;"><div class="row" style="padding-top: 10px;"><div class="col-sm-6" style="min-width: 20%;max-width: 20%;padding-top: 12px;"><span style="font-size: 16px;font-weight: bold;color: #777777;">Image Size</span></div><div class="col-sm-6">
+        <input id="input-model-size" type="number" value="240" min="100" max="1300" step="10" style="font-weight: bold;color: var(--bs-blue);"/><small class="form-text" style="font-size: 15px;font-weight: bold;color: var(--bs-gray);font-style: italic;padding-left: 10px;">Pixel</small></div></div><div class="row" style="padding-top: 10px;"><div class="col-sm-6" style="min-width: 20%;max-width: 20%;padding-top: 12px;"><span style="font-size: 16px;font-weight: bold;color: #777777;">Batch Size</span></div><div class="col-sm-6">
+        <input id="input-model-batch" type="number" value="4" min="2" max="512" style="font-weight: bold;color: var(--bs-blue);"/><small class="form-text" style="font-size: 15px;font-weight: bold;color: var(--bs-gray);font-style: italic;padding-left: 10px;">&nbsp; &nbsp; &nbsp;</small></div></div><div class="row" style="padding-top: 10px;"><div class="col-sm-6" style="min-width: 20%;max-width: 20%;padding-top: 12px;"><span style="font-size: 16px;font-weight: bold;color: #777777;">Epochs</span></div><div class="col-sm-6">
+        <input id="input-model-epochs" type="number" value="10" min="1" max="10000" style="font-weight: bold;color: var(--bs-blue);"/><small class="form-text" style="font-size: 15px;font-weight: bold;color: var(--bs-gray);font-style: italic;padding-left: 10px;">Number of loops</small></div></div><div class="row" style="padding-top: 10px;"><div class="col-sm-6" style="min-width: 20%;max-width: 20%;"><span style="font-size: 16px;font-weight: bold;color: #777777;">Weights</span></div><div class="col-sm-6" style="max-width: 78%;min-width: 78%;"><div><fieldset style="min-width: 100%;max-width: 100%;"><div class="custom-control custom-radio">
+        <input id="input-model-choose" type="radio" class="custom-control-input" name="import_weights" value="choose" checked=""><label class="form-label custom-control-label" for="customRadio1" style="font-size: 16px;font-weight: bold;color: var(--bs-blue);">&nbsp; Choose yolo weights</label>
+            <select id="select-weights" class="form-control" multiple="" style="font-size: 13px;font-weight: bold;color: var(--bs-dark);font-style: normal;">
+                <option value="1" selected="">YOLOv5s ( mAP-val: 36.7, mAp-test: 36.7, Speed: 2, params: 7.3, FlOPs: 17 )</option>
+                <option value="2">YOLOv5m ( mAP-val: 44.5, mAp-test: 44.5, Speed: 2.7, params: 21.4, FlOPs: 51.3 )</option>
+                <option value="3">YOLOv5l ( mAP-val: 48.2, mAp-test: 48.2, Speed: 3.8, params: 47, FlOPs: 115.4 )</option>
+                <option value="4">YOLOv5x ( mAP-val: 50.4, mAp-test: 50.4, Speed: 6.1, params: 87.7, FlOPs: 218.8 )</option>
+                <option value="5">YOLOv5s6 ( mAP-val: 43.3, mAp-test: 43.3, Speed: 4.3, params: 12.7, FlOPs: 17.4 )</option>
+                <option value="6">YOLOv5m6 ( mAP-val: 50.5, mAp-test: 50.5, Speed: 8.4, params: 35.9, FlOPs: 52.4 )</option>
+                <option value="7">YOLOv5l6 ( mAP-val: 53.4, mAp-test: 53.4, Speed: 12.3, params: 77.2, FlOPs: 117.7 )</option>
+                <option value="8">YOLOv5x6 ( mAP-val: 54.4, mAp-test: 54.4, Speed: 22.4, params: 141.8, FlOPs: 222.9 )</option>
+                <option value="9">YOLOv5x6&nbsp;TTA ( mAP-val: 55, mAp-test: 55, Speed: 70.8, params: -, FlOPs: - )</option>
+            </select></div><div class="custom-control custom-radio" style="min-width: 100%;max-width: 100%;padding-top: 10px;">
+        <input id="input-model-import" type="radio" class="custom-control-input" name="import_weights" value="import"><label class="form-label custom-control-label" for="customRadio2" style="font-weight: bold;color: var(--bs-blue);">&nbsp; Import weight&nbsp; &nbsp;</label><div class="row" style="padding-top: 0px;padding-left: 10px;padding-right: 10px;"><div class="col" style="padding-top: 2px;padding-left: 0px;padding-right: 6px;"><form><div style="width: 200px;max-width: 100%;min-width: 100%;">
+            <input id="input-upload-weight" class="form-control custom-file-input" accept=".pt" type="file" style="max-width: 100%;min-width: 100%;"></div></form></div><div class="col" style="min-width: 40px;max-width: 40px;height: 40px;margin: 0;padding-right: 0;padding-left: 0;min-height: 40px;max-height: 40px;">
+            <button onclick="upload_weight()" id="btn-upload-weight" class="btn" data-bss-hover-animate="flash" type="button" style="min-width: 100%;max-width: 100%;height: 100%;min-height: 100%;max-height: 100%;padding-top: 5px;padding-right: 5px;padding-bottom: 5px;padding-left: 5px;margin: 0;margin-top: 0;margin-right: 0;margin-bottom: 0;margin-left: 0;"><svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 16 16" fill="currentColor" class="bi bi-cloud-upload-fill" style="font-size: 20px;"><path fill-rule="evenodd" d="M8 0a5.53 5.53 0 0 0-3.594 1.342c-.766.66-1.321 1.52-1.464 2.383C1.266 4.095 0 5.555 0 7.318 0 9.366 1.708 11 3.781 11H7.5V5.707L5.354 7.854a.5.5 0 1 1-.708-.708l3-3a.5.5 0 0 1 .708 0l3 3a.5.5 0 0 1-.708.708L8.5 5.707V11h4.188C14.502 11 16 9.57 16 7.773c0-1.636-1.242-2.969-2.834-3.194C12.923 1.999 10.69 0 8 0zm-.5 14.5V11h1v3.5a.5.5 0 0 1-1 0z"></path></svg></button></div></div><div class="row" style="padding-top: 10px;padding-left: 10px;padding-right: 10px;"><div class="col" style="padding-left: 0; padding-right: 0">
+            <div id="Progress|||Upload_Weights" class="progress" style="width: 100%;min-width: 100%;max-width: 100%;height: 100%;min-height: 100%;max-height: 100%;border-radius: 3px;padding-left: 0px;"></div></div></div></div></fieldset></div></div></div></div></div></div></div></div>
+    </section>
+
+<!--    --------------------------------------------------------------------------------------------------------------   -->
+<!--    ----------------------------------------------   TRAIN MODEL -------------------------------------------------   -->
+<!--    --------------------------------------------------------------------------------------------------------------   -->
+
+    <section class="mt-4" style="padding-top: 20px;"><div class="container-fluid"><div class="row"><div class="col"><div class="card shadow"><div class="card-header py-2"><div></div><div class="row" style="height: 60px;"><div class="col" style="min-width: 200px;max-width: 200px;width: 200px;min-height: 50px;max-height: 50px;height: 50px;"><div style="width: 100%;min-width: 100%;max-width: 100%;height: 100%;min-height: 100%;max-height: 100%;">
+        <button onclick="train_model()" id="btn-train-model" class="btn" data-bss-hover-animate="flash" type="button" style="min-width: 100%;max-width: 100%;height: 100%;min-height: 100%;max-height: 100%;padding-top: 5px;padding-right: 5px;padding-bottom: 5px;padding-left: 5px;margin: 0;margin-top: 0;margin-right: 0;margin-bottom: 0;margin-left: 0;background: var(--bs-teal);"><span class="text-uppercase" style="font-size: 16px;font-weight: bold;">TRAIN MODEL</span></button></div></div>
+        <div id="Progress|||TrainStep" class="col" style="padding-top: 10px;"></div></div></div><div class="card-body" style="margin-left: 20px;"><div class="row overflow-auto" style="max-height: 300px;"><div class="col" style="min-height: 250px;max-height: 250px;">
+        <textarea id='train-console' style="word-spacing: 2px; width: 100%;border-style: none;border-top-color: rgb(33,255,255);border-right-color: rgba(37,255,255, 0.1);border-bottom-color: rgba(37,255,255, 0.1);border-left-color: rgba(37,255,255, 0.1);font-size: 13px;min-height: 250px;max-height: 250px;" readonly=""></textarea></div></div><div class="row" style="padding-bottom: 0px;padding-left: 12px;padding-right: 12px;">
+        <div id='Progress|||Train_Model' class="progress" style="width: 100%;min-width: 100%;max-width: 100%;height: 100%;min-height: 100%;max-height: 100%;border-radius: 3px;padding-right: 0;padding-left: 0;"></div></div></div><div class="card-header py-2"><div></div><div class="row"><div class="col" style="min-width: 200px;max-width: 200px;width: 200px;min-height: 50px;max-height: 50px;height: 50px;"><div style="width: 100%;min-width: 100%;max-width: 100%;height: 100%;min-height: 100%;max-height: 100%;">
+        <button id="btn-train-kill" onclick="kill_process()" class="btn" data-bss-hover-animate="flash" type="button" style="min-width: 100%;max-width: 100%;height: 100%;min-height: 100%;max-height: 100%;padding-top: 5px;padding-right: 5px;padding-bottom: 5px;padding-left: 5px;margin: 0;margin-top: 0;margin-right: 0;margin-bottom: 0;margin-left: 0;background: var(--bs-red);" disabled=""><span class="text-uppercase" style="font-size: 16px;font-weight: bold;">KILL PROCESS</span></button></div></div><div class="col" style="min-width: 200px;max-width: 200px;width: 200px;min-height: 50px;max-height: 50px;height: 50px;"><div style="width: 100%;min-width: 100%;max-width: 100%;height: 100%;min-height: 100%;max-height: 100%;">
+        <button id="btn-train-test" onclick="test_model()" class="btn" data-bss-hover-animate="flash" type="button" style="min-width: 100%;max-width: 100%;height: 100%;min-height: 100%;max-height: 100%;padding-top: 5px;padding-right: 5px;padding-bottom: 5px;padding-left: 5px;margin: 0;margin-top: 0;margin-right: 0;margin-bottom: 0;margin-left: 0;background: var(--bs-yellow);" disabled=""><span class="text-uppercase" style="font-size: 16px;font-weight: bold;">SHOW TEST mAP</span></button></div></div><div class="col" style="min-width: 200px;max-width: 200px;width: 200px;min-height: 50px;max-height: 50px;height: 50px;"><div style="width: 100%;min-width: 100%;max-width: 100%;height: 100%;min-height: 100%;max-height: 100%;">
+        <button id="btn-train-exmodel" onclick="export_train_model()" class="btn" data-bss-hover-animate="flash" type="button" style="min-width: 100%;max-width: 100%;height: 100%;min-height: 100%;max-height: 100%;padding-top: 5px;padding-right: 5px;padding-bottom: 5px;padding-left: 5px;margin: 0;margin-top: 0;margin-right: 0;margin-bottom: 0;margin-left: 0;background: var(--bs-yellow);" disabled=""><span class="text-uppercase" style="font-size: 16px;font-weight: bold;">EXPORT MODEL</span></button></div></div><div class="col" style="min-width: 200px;max-width: 200px;width: 200px;min-height: 50px;max-height: 50px;height: 50px;"><div style="width: 100%;min-width: 100%;max-width: 100%;height: 100%;min-height: 100%;max-height: 100%;">
+        <button id='btn-train-exyaml' onclick="export_yaml()" class="btn" data-bss-hover-animate="flash" type="button" style="min-width: 100%;max-width: 100%;height: 100%;min-height: 100%;max-height: 100%;padding-top: 5px;padding-right: 5px;padding-bottom: 5px;padding-left: 5px;margin: 0;margin-top: 0;margin-right: 0;margin-bottom: 0;margin-left: 0;background: var(--bs-yellow);" disabled=""><span class="text-uppercase" style="font-size: 16px;font-weight: bold;">EXPORT YAML</span></button></div></div></div></div></div></div></div></div>
+    </section>
+
+<!--    --------------------------------------------------------------------------------------------------------------   -->
+<!--    ---------------------------------------------- OBJECT DETECTION ----------------------------------------------   -->
+<!--    --------------------------------------------------------------------------------------------------------------   -->
+
+
+    <section class="mt-4" style="padding-top: 20px;"><div class="container-fluid"><div class="row"><div class="col"><div class="card shadow">
+
+        <div class="card-header py-2"><div class="row"><div class="col" style="text-align: center;"><div class="row"><div class="col"><p style="font-size: 20px;font-weight: bold;text-shadow: 0px 0px 13px;color: #55b776;font-family: Aclonica, sans-serif;">OBJECT DETECTION</p></div><div class="col" style="min-width: 30px;max-width: 30px;padding-right: 0;padding-left: 0;">
+        <button id="btn_reset_decteion" onclick="reset_detection()" class="btn" data-bss-hover-animate="tada" type="button" style="min-width: 30px;max-width: 30px;height: 100%;min-height: 30px;max-height: 30px;padding-top: 0px;padding-right: 0;padding-bottom: 0;padding-left: 0;margin: 0;margin-top: 0;margin-right: 0;margin-bottom: 0;margin-left: 0;background: rgba(0,0,0,0.075);opacity: 1;transform: translate(0px) rotate(0deg) scale(0.92);filter: brightness(0%) contrast(85%);border-style: none;border-radius: 20px;"><svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round" class="icon icon-tabler icon-tabler-refresh" style="font-size: 20px;text-align: center;"><path stroke="none" d="M0 0h24v24H0z" fill="none"></path><path d="M20 11a8.1 8.1 0 0 0 -15.5 -2m-.5 -4v4h4"></path><path d="M4 13a8.1 8.1 0 0 0 15.5 2m.5 4v-4h-4"></path></svg></button></div></div></div></div><form enctype='multipart/form-data' class="row" style="padding-bottom: 10px" method="POST"><span id="detection-status" style="position: relative; font-weight: bold; color: #5b32d6; font-size: 14px; width: 100%; text-align: left;"> Upload Model</span><div class="col" style="min-width: 200px;max-width: 200px;width: 200px;min-height: 40px;max-height: 40px;height: 40px;"><div  style="width: 100%;min-width: 100%;max-width: 100%;height: 100%;min-height: 100%;max-height: 100%;">
+        <input type="file" id="input_upload_detection" accept=".pt" multiple="multiple" class="btn" data-bss-hover-animate="flash" style="font-size: 10px; font-weight: bold; min-width: 100%;max-width: 100%;height: 100%;min-height: 100%;max-height: 100%;padding-top: 10px;padding-right: 5px;padding-bottom: 5px;padding-left: 5px;margin: 0;margin-top: 0;margin-right: 0;margin-bottom: 0;margin-left: 0;"/></div></div><div class="col" style="min-width: 40px;max-width: 40px;height: 40px;margin: 0;padding-right: 0;padding-left: 0;min-height: 40px;max-height: 40px;">
+        <button onclick="upload_detection()" id="btn_upload_detection" class="btn" data-bss-hover-animate="flash" type="button" style="min-width: 100%;max-width: 100%;height: 100%;min-height: 100%;max-height: 100%;padding-top: 5px;padding-right: 5px;padding-bottom: 5px;padding-left: 5px;margin: 0;margin-top: 0;margin-right: 0;margin-bottom: 0;margin-left: 0;"><svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 16 16" fill="currentColor" class="bi bi-cloud-upload-fill" style="font-size: 20px;"><path fill-rule="evenodd" d="M8 0a5.53 5.53 0 0 0-3.594 1.342c-.766.66-1.321 1.52-1.464 2.383C1.266 4.095 0 5.555 0 7.318 0 9.366 1.708 11 3.781 11H7.5V5.707L5.354 7.854a.5.5 0 1 1-.708-.708l3-3a.5.5 0 0 1 .708 0l3 3a.5.5 0 0 1-.708.708L8.5 5.707V11h4.188C14.502 11 16 9.57 16 7.773c0-1.636-1.242-2.969-2.834-3.194C12.923 1.999 10.69 0 8 0zm-.5 14.5V11h1v3.5a.5.5 0 0 1-1 0z"></path></svg></button></div><div class="col" style="padding-top: 0px;margin-top: 10px;margin-bottom: 10px;padding-left: 10px;padding-right: 12px;">
+        <div id="Progress|||Detection" class="progress" style="width: 100%;min-width: 100%;max-width: 100%;height: 100%;min-height: 100%;max-height: 100%;border-radius: 3px;"></div></div></form><span style="position: relative; font-weight: bold; color: #6610f2; font-size: 14px; width: 100%; text-align: left;"> Upload Video</span><form enctype='multipart/form-data' class="row" method="POST"><div class="col" style="min-width: 200px;max-width: 200px;width: 200px;min-height: 40px;max-height: 40px;height: 40px;"><div  style="width: 100%;min-width: 100%;max-width: 100%;height: 100%;min-height: 100%;max-height: 100%;">
+        <input type="file" id="input_upload_video" accept=".mp4" multiple="multiple" class="btn" data-bss-hover-animate="flash" style="font-size: 10px; font-weight: bold; min-width: 100%;max-width: 100%;height: 100%;min-height: 100%;max-height: 100%;padding-top: 10px;padding-right: 5px;padding-bottom: 5px;padding-left: 5px;margin: 0;margin-top: 0;margin-right: 0;margin-bottom: 0;margin-left: 0;"/></div></div><div class="col" style="min-width: 40px;max-width: 40px;height: 40px;margin: 0;padding-right: 0;padding-left: 0;min-height: 40px;max-height: 40px;">
+        <button onclick="upload_video()" id="btn_upload_video" class="btn" data-bss-hover-animate="flash" type="button" style="min-width: 100%;max-width: 100%;height: 100%;min-height: 100%;max-height: 100%;padding-top: 5px;padding-right: 5px;padding-bottom: 5px;padding-left: 5px;margin: 0;margin-top: 0;margin-right: 0;margin-bottom: 0;margin-left: 0;"><svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 16 16" fill="currentColor" class="bi bi-cloud-upload-fill" style="font-size: 20px;"><path fill-rule="evenodd" d="M8 0a5.53 5.53 0 0 0-3.594 1.342c-.766.66-1.321 1.52-1.464 2.383C1.266 4.095 0 5.555 0 7.318 0 9.366 1.708 11 3.781 11H7.5V5.707L5.354 7.854a.5.5 0 1 1-.708-.708l3-3a.5.5 0 0 1 .708 0l3 3a.5.5 0 0 1-.708.708L8.5 5.707V11h4.188C14.502 11 16 9.57 16 7.773c0-1.636-1.242-2.969-2.834-3.194C12.923 1.999 10.69 0 8 0zm-.5 14.5V11h1v3.5a.5.5 0 0 1-1 0z"></path></svg></button></div><div class="col" style="padding-top: 0px;margin-top: 10px;margin-bottom: 10px;padding-left: 10px;padding-right: 12px;">
+        <div id="Progress|||Video" class="progress" style="width: 100%;min-width: 100%;max-width: 100%;height: 100%;min-height: 100%;max-height: 100%;border-radius: 3px;"></div></div></form></div><div class="card-body" style="margin-left: 20px;"><div class="row"><div class="col" style="min-width: 350px;max-width: 40%;border-radius: 10px;filter: blur(0px);border-style: solid;border-color: rgb(211,215,220);padding-bottom: 20px;"><div class="row" style="padding-top: 10px;"><div class="col-sm-6" style="min-width: 50%;max-width: 50%;padding-top: 12px;"><span style="font-size: 14px;font-weight: bold;color: #777777;">Image Size</span></div><div class="col-sm-6">
+        <input id="input-detection-size" type="number" value="240" min="100" max="1300" step="10" style="font-weight: bold;color: var(--bs-blue);"></div></div><div class="row" style="padding-top: 10px;"><div class="col-sm-6" style="min-width: 50%;max-width: 50%;padding-top: 12px;"><span style="font-size: 14px;font-weight: bold;color: #777777;"><strong>Confidence threshold</strong></span></div><div class="col-sm-6">
+        <input id="input-detection-threshold" type="number" value="0.25" min="0" max="1" step="0.1" style="font-weight: bold;color: var(--bs-blue);"></div></div><div class="row" style="padding-top: 10px;"><div class="col-sm-6" style="min-width: 50%;max-width: 50%;padding-top: 12px;"><span style="font-size: 14px;font-weight: bold;color: #777777;"><strong>NMS IOU threshold</strong><br></span></div><div class="col-sm-6">
+        <input id="input-detection-iou" type="number" value="0.45" min="0" max="1" step="0.1" style="font-weight: bold;color: var(--bs-blue);"></div></div><div class="row" style="padding-top: 10px;"><div class="col-sm-6" style="min-width: 50%;max-width: 50%;padding-top: 12px;"><span style="font-size: 14px;font-weight: bold;color: #777777;"><strong>Maximum detections</strong><br></span></div><div class="col-sm-6">
+        <input id="input-detection-max" type="number" value="1000" min="1" step="100" style="font-weight: bold;color: var(--bs-blue);" max="999999999"></div></div><div class="row" style="padding-top: 40px;"><div class="col" style="min-width: 155px;max-width: 155px;padding-left: 5px;padding-right: 12px;"><div style="width: 100%;min-width: 150px;max-width: 150px;height: 100%;min-height: 100%;max-height: 100%;text-align: center;">
+        <button onclick="objecdetection()" id="btn-object-detection" class="btn" data-bss-hover-animate="flash" type="button" style="min-width: 150px;max-width: 150px;height: 100%;min-height: 100%;max-height: 100%;padding-top: 5px;padding-right: 5px;padding-bottom: 5px;padding-left: 5px;margin: 0;margin-top: 0;margin-right: 0;margin-bottom: 0;margin-left: 0;background: var(--bs-teal);"><span class="text-uppercase" style="font-size: 16px;font-weight: bold;">DETECTION</span></button></div></div><div class="col" style="padding-right: 10px;padding-left: 10px;filter: blur(0px);">
+        <div id="Progress|||OBject_Detection" class="progress" style="width: 100%;min-width: 100%;max-width: 100%;height: 100%;min-height: 100%;max-height: 100%;border-radius: 3px;padding-right: 0;padding-left: 0;"></div></div></div></div><div class="col" style="min-width: 280px;margin-top: 20px;"><div>
+        <video id="video-data" style="width: 100%; height: 100%;" controls>
+
+        </video></div></div></div></div><div class="card-header py-2"><div></div><div class="row"><div class="col"><div style="width: 100%;min-width: 100%;max-width: 100%;height: 100%;min-height: 100%;max-height: 100%;text-align: center;">
+        <button onclick="export_video()" id="btn-export-video" class="btn" data-bss-hover-animate="flash" type="button" style="min-width: 150px;max-width: 150px;height: 100%;min-height: 100%;max-height: 100%;padding-top: 5px;padding-right: 5px;padding-bottom: 5px;padding-left: 5px;margin: 0;margin-top: 0;margin-right: 0;margin-bottom: 0;margin-left: 0;background: var(--bs-yellow);" disabled=""><span class="text-uppercase" style="font-size: 12px;font-weight: bold;">Save Video</span></button></div></div></div></div></div></div></div></div>
+    </section>
+
+    <div class="footer-basic" style="padding-top: 200px;"><footer><div class="social"><a href="#"><i class="icon ion-social-instagram"></i></a><a href="#"><i class="icon ion-social-snapchat"></i></a><a href="#"><i class="icon ion-social-twitter"></i></a><a href="#"><i class="icon ion-social-facebook"></i></a></div><ul class="list-inline">
+        <li class="list-inline-item"><a href="#">Home</a></li>
+        <li class="list-inline-item"><a href="#">Services</a></li>
+        <li class="list-inline-item"><a href="#">About</a></li>
+        <li class="list-inline-item"><a href="#">Doubts</a></li>
+        <li class="list-inline-item"><a href="#">Privacy Policy</a></li>
+        <li class="list-inline-item"><a href="#">Contacts</a></li></ul>
+        <p class="copyright">.... © 2021</p></footer></div>
+    <div id="myModal" class="modal overflow-auto"><span class="close-x">&times;</span><img class="modal-content" id="img01"><div id="caption"></div></div>
+
+
+    <script type="text/babel">
+        class Progress extends React.Component{
+            constructor(props) {
+                super(props);
+                this.style = {"width": "0%",'background-color': "rgb(0, 220, 200)",'font-weight': 'bold','color': 'white','font-size': '13px' };
+            }
+            render(){return(<div className="progress-bar" style={this.style} id={this.props.idx}>0%</div>);}}
+
+        class Image extends React.Component {
+            constructor(props) {
+                super(props);
+                this.style = { "width": "85px", "min-width": "85px", "max-width": "85px", "min-height": "65px", "max-height": "65px", "padding-left": "0", "padding-right": "5px"};
+                this.remove = this.remove.bind(this);
+            }
+            modal(){
+                document.getElementById("myModal").style.display = "block";
+                document.getElementById("img01").src = this.props.src;
+                document.getElementById("caption").innerHTML = this.props.alt;}
+            remove(){if (confirm("Do you want to delete this image?")) {remove_images(this.props.alt);}}
+            render(){
+                return(
+                    <div className="col img-wrap" style={this.style}>
+                        <span className="close" onClick={this.remove}>
+                            <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="none">
+                                <path fill-rule="evenodd" clip-rule="evenodd" d="M17 5V4C17 2.89543 16.1046 2 15 2H9C7.89543 2 7 2.89543 7 4V5H4C3.44772 5 3 5.44772 3 6C3 6.55228 3.44772 7 4 7H5V18C5 19.6569 6.34315 21 8 21H16C17.6569 21 19 19.6569 19 18V7H20C20.5523 7 21 6.55228 21 6C21 5.44772 20.5523 5 20 5H17ZM15 4H9V5H15V4ZM17 7H7V18C7 18.5523 7.44772 19 8 19H16C16.5523 19 17 18.5523 17 18V7Z" fill="currentColor"></path>
+                                <path d="M9 9H11V17H9V9Z" fill="currentColor"></path><path d="M13 9H15V17H13V9Z" fill="currentColor"></path>
+                            </svg>
+                        </span><img onClick={this.modal.bind(this)} className="img-show" alt={this.props.alt} src={this.props.src}/></div>);}
+        }
+
+        class ImageLabel extends React.Component {
+            constructor(props) {
+                super(props);
+                this.style = { "width": "85px", "min-width": "85px", "max-width": "85px", "min-height": "65px", "max-height": "65px", "padding-left": "0", "padding-right": "5px"};
+            }
+            modal(){
+                document.getElementById("myModal").style.display = "block";
+                document.getElementById("img01").src = this.props.src;
+                document.getElementById("caption").innerHTML = this.props.alt;
+
+            }
+            render(){
+                return(
+                    <div className="col img-wrap" style={this.style}>
+                        <img onClick={this.modal.bind(this)} className="imglabel-show" alt={this.props.alt} src={this.props.src}/></div>);}}
+
+        class ShowImageLabel extends React.Component{
+            constructor(props) {super(props);this.state = {alt: [], src: []};this.style = {"max-height": "300px"};this.newItem = this.newItem.bind(this);this.resetItem = this.resetItem.bind(this);}
+            newItem(){
+                this.setState( state => ({
+                    alt: state.alt.concat(get_labels_name()),
+                    src: state.src.concat(dict_images.get(get_labels_name()))}));
+            }
+            resetItem(){this.setState( state => ({src: [],alt: []}));}
+            render(){return (
+                <div>
+                    <input hidden id='Check|||Upload_Labels' type="checkbox" onClick={this.newItem}/>
+                    <input hidden id='Check|||Upload_Labels3' type="checkbox" onClick={this.resetItem}/>
+                    <input id='Input|||Upload_Labels' type="hidden" value="" />
+                    <div className="row overflow-auto" style={this.style}>
+                        {this.state.alt.map((x, i) => {
+                            return <ImageLabel src={this.state.src[i]} alt={this.state.alt[i]}/>;})}
+                    </div>
+            </div>);}}
+
+        class ShowImage extends React.Component{
+            constructor(props) {
+                super(props);
+                this.state = {alt: [], src: []};
+                this.style = {"max-height": "300px"};
+                this.addItem = this.addItem.bind(this);
+                this.removeItem = this.removeItem.bind(this);
+                this.updateItem = this.updateItem.bind(this);
+                this.newItem = this.newItem.bind(this);this.resetItem = this.resetItem.bind(this);}
+            updateItem(){this.setState( state => ({src: swap_array(state.alt.indexOf(get_images_name()), state.alt.length-1, state.src), alt: swap_array(state.alt.indexOf(get_images_name()), state.alt.length-1, state.alt),}));}
+            newItem(){this.setState( state => ({alt: state.alt.concat(get_images_name()), src: state.src.concat(dict_images.get(get_images_name()))}));}
+            addItem(){if (this.state.alt.indexOf(get_images_name()) === -1){this.newItem();} else{this.updateItem();}}
+            removeItem(){this.setState( state => ({src: remove_array(state.src, state.src[state.alt.indexOf(get_images_name())]), alt: remove_array(state.alt, get_images_name())}));}
+            resetItem(){this.setState( state => ({src: [],alt: []}));}
+
+            render(){return (<div>
+                    <input hidden id='Check|||Upload_Images' type="checkbox" onClick={this.addItem}/>
+                    <input hidden id='Check|||Upload_Images2' type="checkbox" onClick={this.removeItem}/>
+                    <input hidden id='Check|||Upload_Images3' type="checkbox" onClick={this.resetItem}/>
+                    <input id='Input|||Upload_Images' type="hidden" value="" /><div className="row overflow-auto" style={this.style}>{this.state.alt.map((x, i) => {return <Image src={this.state.src[i]}alt={this.state.alt[i]}/>;})}</div></div>);}}
+
+        class LabelName extends React.Component{
+            constructor(props) {super(props);this.style1 = {"min-width": "40px","max-width": "40px","text-align": "center", "width": "40px", "color": "var(--bs-table-striped-color)", "font-size": "16px", "font-weight": "bold"};this.style2 = {"min-width": "100%","max-width": "100%","min-height": "30px","max-height": "30px","font-size": "15px","text-align": "left", "background": "var(--bs-table-bg)","border-bottom-style": "dashed","border-bottom-color": "var(--bs-table-striped-color)", "font-weight": "bold"};this.style3 = {"min-width": "30px", "max-width": "30px", "text-align": "center"};this.style4 = {"min-width": "30px", "max-width": "30px", "height": "100%", "min-height": "30px", "max-height": "30px", "padding-top": "0px", "padding-right": "0", "padding-bottom": "0", "padding-left": "0", "margin": "0", "margin-top": "0", "margin-right": "0", "margin-bottom": "0", "margin-left": "0", "background": "rgba(0,0,0,0.075)", "opacity": "1", "transform": "translate(0px) rotate(0deg) scale(0.92)", "filter": "brightness(0%) contrast(85%)", "border-style": "none", "border-radius": "20px"};this.style5 = {"font-size": "15px", "text-align": "center"};this.style6 = {"min-width": "40px", "max-width": "40px", "color": "var(--bs-primary)", "font-weight": "bold", "width": "40px", "text-align": "center"};this.style7 = {"font-weight": "bold", "color": "var(--bs-primary)", "min-width": "200px"};this.style8 = {"min-width": "30px", "max-width": "30px"};
+                this.style0 = {"padding-top": "0", "padding-left": "0px"};
+
+                this.state = {lname: [], select: false}
+
+                this.removeItem = this.removeItem.bind(this);
+                this.newItem = this.newItem.bind(this);
+                this.resetItem = this.resetItem.bind(this);
+                this.setTotal = this.setTotal.bind(this);
+            }
+
+            newItem(){this.setState( state => ({lname: state.lname.concat(this.state.lname.length)}));}
+            removeItem(){this.setState( state => ({lname: remove_array(state.lname, this.state.lname[this.state.lname.length -1])}));}
+            resetItem(){this.setState( state => ({lname: []}));}
+            setTotal(){total_class(this.state.lname)}
+
+            render(){
+                return(
+                    <div className="table-responsive table mb-0 pt-3 pe-2" style={this.style0}>
+                        <input hidden id='Check|||Upload_Class' type="checkbox" onClick={this.newItem}/>
+                        <input hidden id='Check|||Upload_Class2' type="checkbox" onClick={this.removeItem}/>
+                        <input hidden id='Check|||Upload_Class3' type="checkbox" onClick={this.resetItem}/>
+                        <input hidden id='Check|||Upload_Class4' type="checkbox" onClick={this.setTotal}/>
+                        <table className="table table-striped table-sm my-0"><thead><tr><th style={this.style6}>ID</th><th style={this.style7}>&nbsp; &nbsp;Label Name</th></tr></thead><tbody>
+                        {this.state.lname.map((x, i) => {return (<tr>
+                            <td style = {this.style1}>{i}</td>
+                            <td><input id={"Class|||" + i.toString()} type="text" style={this.style2}/></td></tr>);})}</tbody>
+                        </table></div>
+                );}
+        }
+
+        class TrainStep extends React.Component{
+            constructor(props) {
+                super(props);
+                this.stylestart = {"backgroundColor": "#bbb", "width": "0%", "max-width": "50%", "margin-left": "50%", "z-index": "10", "margin-top": "9px", "height": "3px", "position": "absolute"};
+                this.stylemid = {"backgroundColor": "#bbb", "width": "0%", "z-index": "10", "margin-top": "9px", "height": "3px", "position": "absolute"};
+                this.styleend = {"backgroundColor": "#bbb", "width": "0%", "max-width": "50%", "z-index": "10", "margin-top": "9px", "height": "3px", "position": "absolute"};
+                this.bundle = {"position": "relative", "z-index": "100"};
+                this.state = {
+                    type: [0, 1, 1, 2],
+                    name: ["Checking", "Preprocessing", "Training", "Completed"],
+                    status: [0, 0, 0, 0],
+                    idx: [0, 1, 2, 3]
+                };
+                this.get_style = this.get_style.bind(this);
+                this.get_class = this.get_class.bind(this);
+                this.get_class_i = this.get_class_i.bind(this);
+                this.change_status = this.change_status.bind(this);
+                //this.update = this.update.bind(this);
+            }
+
+            get_style(i){switch (i) {case 0: return _.cloneDeep(this.stylestart);case 1: return _.cloneDeep(this.stylemid);case 2: return _.cloneDeep(this.styleend);}}
+            get_class(i){switch (i) {case 1: return "completed";case 0: return "";}}
+            get_class_i(i){switch (i) {case 1: return "fa fa-check-circle";case 0: return "";}}
+            change_status(){this.setState( state => ({status: get_status_train()}))};
+
+            render(){return(<div>
+                <input hidden id='Input_Step|||Change' type="checkbox" onClick={this.change_status}/>
+                <input id='Input_Step|||Status' type="hidden"/>
+                <ul className="progress-indicator">{this.state.status.map((x, i) => {return (
+                    <li className={this.get_class(this.state.status[i])}>
+                    <div id={'Progress_Step|||' + this.state.name[i] + "|||" + this.state.type[i].toString() + "|||" + this.state.idx[i].toString()} className="progress-bar" style={this.get_style(this.state.type[i])}></div>
+                    <span className="bubble" style={this.bundle}></span>
+                    <i className={this.get_class_i(x)}></i>{this.state.name[i]}</li>);})}</ul></div>);}}
+
+
+
+
+        ReactDOM.render(<Progress idx='Progress|||Upload_Images|||RJ' />, document.getElementById('Progress|||Upload_Images'));
+        ReactDOM.render(<Progress idx='Progress|||Upload_Labels|||RJ' />, document.getElementById('Progress|||Upload_Labels'));
+        ReactDOM.render(<Progress idx='Progress|||Upload_Weights|||RJ' />, document.getElementById('Progress|||Upload_Weights'));
+        ReactDOM.render(<Progress idx='Progress|||Train_Model|||RJ' />, document.getElementById('Progress|||Train_Model'));
+        ReactDOM.render(<Progress idx='Progress|||Upload_Detection|||RJ' />, document.getElementById('Progress|||Detection'));
+        ReactDOM.render(<Progress idx='Progress|||Upload_Video|||RJ' />, document.getElementById('Progress|||Video'));
+        ReactDOM.render(<Progress idx='Progress|||Object_Detection|||RJ' />, document.getElementById('Progress|||OBject_Detection'));
+        ReactDOM.render(<TrainStep />, document.getElementById('Progress|||TrainStep'));
+
+        ReactDOM.render(<ShowImage />, document.getElementById('Show|||Upload_Images'));
+        ReactDOM.render(<ShowImageLabel />, document.getElementById('Show|||Upload_Labels'));
+
+        ReactDOM.render(<LabelName />, document.getElementById('Table|||Labels'));
+
+
+        function remove_array(arr, value) {return arr.filter(function(ele){return ele !== value;});}
+        function swap_array(idx1, idx2, array){let tmp = array[idx1];array[idx1] = array[idx2];array[idx2] = tmp;return array;}
+
+        function start_process() {for(let i=0; i<action.length; i++){document.getElementById(action[i]).disabled = true;}}
+        function end_process() {for(let i=0; i<action.length; i++){document.getElementById(action[i]).disabled = false;}}
+        function reset_progress(idx) {document.getElementById(idx).textContent = '0%';document.getElementById(idx).style.width = '0%';document.getElementById(idx).style.backgroundColor = 'rgb(0, 220, 200)';}
+
+        function add_images(name){document.getElementById("Input|||Upload_Images").value = name;document.getElementById("Check|||Upload_Images").click();}
+        function remove_images(name) {document.getElementById("Input|||Upload_Images").value = name;document.getElementById("Check|||Upload_Images2").click();socket.emit("image-delete", name);}
+        function reset_images() {if (confirm("Do you want to delete all images?")) {reset_progress('Progress|||Upload_Images|||RJ');start_process(); socket.emit('images-reset');}}
+        function reset_images_done() {document.getElementById("Check|||Upload_Images3").click();end_process();}
+        function get_images_name() {return document.getElementById("Input|||Upload_Images").value}
+
+        function add_class() {document.getElementById("Check|||Upload_Class").click();add_total_class();}
+        function remove_class() {document.getElementById("Check|||Upload_Class2").click();add_total_class();}
+        function reset_class() {set_name_labels("Please create YAML file before training!");document.getElementById("Check|||Upload_Class3").click();add_total_class();}
+        function set_name_labels(s){document.getElementById("status-namelabels").textContent = s;}
+        function add_total_class() {document.getElementById("Check|||Upload_Class4").click();}
+        function total_class(i) {document.getElementById("total-class").value = i.length;}
+
+        function add_labels(name){document.getElementById("Input|||Upload_Labels").value = name;document.getElementById("Check|||Upload_Labels").click();}
+        function check_labels() {document.getElementById("Check|||Upload_Labels3").click();set_check_labels("Please wait a few minutes, the server is checking ....");socket.emit('check_labels');}
+        function set_check_labels(s){document.getElementById("status-labels").textContent = s;}
+        function check_label_done(data) {for (let i=0; i<data.length; i++){add_labels(data[i]);}set_check_labels("Checking Completed: " + data.length.toString() + ' labels are missing!');}
+        function reset_labels() {if (confirm("Do you want to delete all labels?")) {reset_progress('Progress|||Upload_Labels|||RJ');start_process(); socket.emit('labels-reset');}}
+        function reset_labels_done() {end_process();set_check_labels("Mising all labels, Please press the button to check the labels of the images !");document.getElementById("Check|||Upload_Labels3").click();end_process();}
+        function get_labels_name() {return document.getElementById("Input|||Upload_Labels").value}
+
+        function import_yaml() {document.getElementById("Input|||YAML").click();}
+        function set_yaml(data) {reset_class();for(let i = 0; i<data.length; i++){add_class();document.getElementById("Class|||" + i.toString()).value = data[i];}end_process();set_name_labels("Create YAML file Completed");}
+        function create_yaml() {var total = parseInt(document.getElementById("total-class").value);var check = true;var data = [];if ( total.toString() === "0"){set_name_labels("Must have at least one class !!!");} else {for(let i=0; i< total; i++){var idx = document.getElementById("Class|||"+i.toString()).value.toString();data = data.concat(idx);if (idx.replace(" ", "") === ""){set_name_labels("Class name cannot be empty !!!"); check=false;break;}}if (check){set_name_labels("Please wait a few minutes, the server is generating the yaml file ...");socket.emit("create-yaml", data);}}}
+        function create_yaml_done() {set_name_labels("Create YAML file Completed")}
+
+        function upload_weights_done(rate) {if(rate === 100){socket.emit('compress-upload-weight');}}
+        function reset_model(){document.getElementById("input-model-size").value = 240;document.getElementById('input-model-batch').value = 2;document.getElementById('input-model-epochs').value = 10;document.getElementById("input-model-choose").checked = true;document.getElementById("select-weights").value = 1;document.getElementById("input-upload-weight").value = '';reset_progress('Progress|||Upload_Weights|||RJ');}
+
+        function get_status_train(){var arr = [];let s = document.getElementById('Input_Step|||Status').value.split(",");for(let i=0; i<s.length; i++){arr = arr.concat(parseInt(s[i]));}return arr;}
+        function update_train(){document.getElementById("Input_Step|||Change").click();}
+        function set_train_step(step, value){var data = '';let s = document.getElementById('Input_Step|||Status').value.split(",");s[step] = parseInt(value).toString();for(let i=0; i<s.length; i++){if(i === s.length-1){data = data + s[i];}else{data = data + s[i] + ',';}}document.getElementById('Input_Step|||Status').value = data;update_train();}
+        function reset_console_train() {document.getElementById("train-console").value = "";}
+        function reset_train_step() {train_tool_off();let ts = ['Progress_Step|||Checking|||0|||0', 'Progress_Step|||Preprocessing|||1|||1', 'Progress_Step|||Training|||1|||2', 'Progress_Step|||Completed|||2|||3'];for(let i=0; i<ts.length; i++){document.getElementById(ts[i]).style.width = "0%";set_train_step(i, 0);}}
+        function init_train_step() {document.getElementById('Input_Step|||Status').value = '0,0,0,0';}
+        function set_train_console(value){let idx = document.getElementById("train-console");let old = idx.value;let mss = old + "\n" + value;idx.value = mss;}
+        function kill_process(){socket.emit('kill-train');}
+        function train_tool_on(){for(let i=0; i<train_action.length; i++){document.getElementById(train_action[i]).disabled=false;}}
+        function train_tool_off(){for(let i=0; i<train_action.length; i++){document.getElementById(train_action[i]).disabled = true;}}
+
+        function upload_detection_done(rate) {if(rate === 100){socket.emit('compress-upload-detection'); custom_model=true;}}
+        function upload_video_done(rate) {if(rate === 100){socket.emit('compress-upload-video'); detection_video=true;  }}
+        function reset_detection(){
+            document.getElementById("input-detection-max").value = 1000;
+            document.getElementById("input-detection-iou").value = 0.45;
+            document.getElementById("input-detection-threshold").value = 0.25;
+            document.getElementById("input-detection-size").value = 240;
+        }
+        function set_detection_status(value){document.getElementById('detection-status').textContent = value;}
+
+        window.addEventListener("beforeunload", function (e) {socket.emit('client_disconnecting', {'client_key': client_key.toString()});})
+        var span = document.getElementsByClassName("close-x")[0];span.onclick = function() {document.getElementById("myModal").style.display = "none";}
+
+    </script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/lodash.js/4.17.15/lodash.min.js"> </script>
+    <script src="static/assets/bootstrap/js/bootstrap.min.js"></script>
+    <script src="static/assets/js/bs-init.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/2.6.0/umd/popper.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/datatables/1.10.21/js/jquery.dataTables.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/datatables/1.10.21/js/dataTables.bootstrap4.min.js"></script>
+    <script src="https://cdn.datatables.net/buttons/1.6.5/js/dataTables.buttons.min.js"></script>
+    <script src="https://cdn.datatables.net/buttons/1.6.5/js/buttons.flash.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.1.3/jszip.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.1.53/pdfmake.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.1.53/vfs_fonts.js"></script>
+    <script src="https://cdn.datatables.net/buttons/1.6.5/js/buttons.html5.min.js"></script>
+    <script src="https://cdn.datatables.net/buttons/1.6.5/js/buttons.print.min.js"></script>
+    <script src="static/assets/js/DataTable---Fully-BSS-Editable.js"></script>
+    <script src="static/assets/js/Bootstrap-Tags-Input-1.js"></script>
+    <script src="static/assets/js/Bootstrap-Tags-Input.js"></script>
+    <script src="static/assets/js/Custom-File-Upload.js"></script>
+    <script src="static/assets/js/ml-video.js"></script>
+    <script src="static/assets/js/Multi-Select-Dropdown-by-Jigar-Mistry.js"></script>
+    <script src="static/assets/js/Sample---How-to-change-text-based-on-dropdown.js"></script>
+    <script src="static/assets/js/Studious-selectbox.js"></script>
+    <script src="static/assets/js/Remove-Image-Button.js"></script>
+
+</body>
+
+</html>
